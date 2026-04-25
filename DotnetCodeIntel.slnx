@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CodeIntel.Analysis/CodeIntel.Analysis.csproj" />
+    <Project Path="src/CodeIntel.Cache/CodeIntel.Cache.csproj" />
+    <Project Path="src/CodeIntel.Cli/CodeIntel.Cli.csproj" />
+    <Project Path="src/CodeIntel.Contracts/CodeIntel.Contracts.csproj" />
+    <Project Path="src/CodeIntel.Core/CodeIntel.Core.csproj" />
+    <Project Path="src/CodeIntel.Loader/CodeIntel.Loader.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CodeIntel.Analysis.Tests/CodeIntel.Analysis.Tests.csproj" />
+    <Project Path="tests/CodeIntel.Cli.Tests/CodeIntel.Cli.Tests.csproj" />
+    <Project Path="tests/CodeIntel.Loader.Tests/CodeIntel.Loader.Tests.csproj" />
+  </Folder>
+</Solution>
