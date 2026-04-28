@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using CodeIntel.Contracts;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.MSBuild;
 
 namespace CodeIntel.Analysis;
 
@@ -18,11 +17,10 @@ public sealed class FindSymbolService : IFindSymbolService
     private const int MaxResults = 20;
 
     /// <summary>
-    /// Инициализирует сервис и подготавливает регистрацию MSBuild для Roslyn.
+    /// Инициализирует сервис поиска символов.
     /// </summary>
     public FindSymbolService()
     {
-        AnalysisWorkspaceHelpers.RegisterMsBuild();
     }
 
     public async Task<FindSymbolResponseDto> FindAsync(string solutionPath, string name, CancellationToken cancellationToken = default)
@@ -31,7 +29,7 @@ public sealed class FindSymbolService : IFindSymbolService
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
         var fullSolutionPath = Path.GetFullPath(solutionPath);
-        using var workspace = MSBuildWorkspace.Create();
+        using var workspace = AnalysisWorkspaceHelpers.CreateWorkspace(fullSolutionPath);
 
         var solution = await workspace.OpenSolutionAsync(fullSolutionPath, cancellationToken: cancellationToken);
         var projectNamesByFilePath = AnalysisWorkspaceHelpers.BuildProjectNamesByFilePath(solution);

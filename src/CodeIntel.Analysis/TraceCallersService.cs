@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using CodeIntel.Contracts;
 using CodeIntel.Loader;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.MSBuild;
 
 namespace CodeIntel.Analysis;
 
@@ -17,11 +16,10 @@ namespace CodeIntel.Analysis;
 public sealed class TraceCallersService : ITraceCallersService
 {
     /// <summary>
-    /// Инициализирует сервис и подготавливает регистрацию MSBuild для Roslyn.
+    /// Инициализирует сервис трассировки вызовов.
     /// </summary>
     public TraceCallersService()
     {
-        AnalysisWorkspaceHelpers.RegisterMsBuild();
     }
 
     /// <inheritdoc />
@@ -38,7 +36,7 @@ public sealed class TraceCallersService : ITraceCallersService
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
 
         var fullSolutionPath = Path.GetFullPath(solutionPath);
-        using var workspace = MSBuildWorkspace.Create();
+        using var workspace = AnalysisWorkspaceHelpers.CreateWorkspace(fullSolutionPath);
         var solution = await workspace.OpenSolutionAsync(fullSolutionPath, cancellationToken: cancellationToken);
         var projectNamesByFilePath = AnalysisWorkspaceHelpers.BuildProjectNamesByFilePath(solution);
         var query = TypeSymbolResolutionHelper.ParseQuery(symbol);

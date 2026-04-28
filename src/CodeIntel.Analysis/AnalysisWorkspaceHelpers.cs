@@ -5,19 +5,133 @@ using System.Threading;
 using CodeIntel.Contracts;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.MSBuild;
 
 namespace CodeIntel.Analysis;
 
 internal static class AnalysisWorkspaceHelpers
 {
-    private static int _msbuildRegistered;
+    private const string MsBuildPathEnvironmentVariable = "CODEINTEL_MSBUILD_PATH";
+    private static readonly string[] DefaultVisualStudio2022MsBuildPaths =
+    [
+        @"C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin",
+        @"C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin",
+        @"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin",
+        @"C:\Program Files\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin"
+    ];
 
-    internal static void RegisterMsBuild()
+    private static int _msbuildRegistered;
+    private static readonly object MsBuildRegistrationLock = new();
+
+    internal static MSBuildWorkspace CreateWorkspace(string solutionPath)
     {
-        if (Interlocked.Exchange(ref _msbuildRegistered, 1) == 0)
+        RegisterMsBuild(solutionPath);
+        return MSBuildWorkspace.Create();
+    }
+
+    internal static void RegisterMsBuild(string solutionPath)
+    {
+        if (Volatile.Read(ref _msbuildRegistered) == 1)
         {
-            MSBuildLocator.RegisterDefaults();
+            return;
         }
+
+        lock (MsBuildRegistrationLock)
+        {
+            if (_msbuildRegistered == 1)
+            {
+                return;
+            }
+
+            if (!MSBuildLocator.IsRegistered)
+            {
+                RegisterPreferredMsBuildInstance();
+            }
+
+            Volatile.Write(ref _msbuildRegistered, 1);
+        }
+    }
+
+    private static void RegisterPreferredMsBuildInstance()
+    {
+        if (TryRegisterPreferredMsBuildPath())
+        {
+            return;
+        }
+
+        MSBuildLocator.RegisterDefaults();
+    }
+
+    private static bool TryRegisterPreferredMsBuildPath()
+    {
+        var msbuildPath = ResolvePreferredMsBuildPath();
+        if (msbuildPath is null)
+        {
+            return false;
+        }
+
+        var fullPath = Path.GetFullPath(msbuildPath);
+        ApplyConfiguredVisualStudioEnvironment(fullPath);
+        MSBuildLocator.RegisterMSBuildPath(fullPath);
+        return true;
+    }
+
+    private static string? ResolvePreferredMsBuildPath()
+    {
+        var configuredPath = Environment.GetEnvironmentVariable(MsBuildPathEnvironmentVariable);
+        if (!string.IsNullOrWhiteSpace(configuredPath))
+        {
+            return configuredPath;
+        }
+
+        return DefaultVisualStudio2022MsBuildPaths.FirstOrDefault(Directory.Exists);
+    }
+
+    private static void ApplyConfiguredVisualStudioEnvironment(string msbuildPath)
+    {
+        var directory = new DirectoryInfo(msbuildPath);
+        if (!directory.Exists)
+        {
+            return;
+        }
+
+        var visualStudioRoot = TryResolveVisualStudioRoot(directory);
+        if (visualStudioRoot is null)
+        {
+            return;
+        }
+
+        Environment.SetEnvironmentVariable("VSINSTALLDIR", visualStudioRoot.FullName);
+        Environment.SetEnvironmentVariable("VisualStudioVersion", ResolveVisualStudioVersion(visualStudioRoot));
+        Environment.SetEnvironmentVariable("MSBUILD_EXE_PATH", Path.Combine(msbuildPath, "MSBuild.exe"));
+        Environment.SetEnvironmentVariable("MSBuildSDKsPath", Path.Combine(msbuildPath, "Sdks"));
+    }
+
+    private static DirectoryInfo? TryResolveVisualStudioRoot(DirectoryInfo msbuildDirectory)
+    {
+        var current = msbuildDirectory;
+        while (current.Parent is not null)
+        {
+            if (string.Equals(current.Name, "MSBuild", StringComparison.OrdinalIgnoreCase))
+            {
+                return current.Parent;
+            }
+
+            current = current.Parent;
+        }
+
+        return null;
+    }
+
+    private static string ResolveVisualStudioVersion(DirectoryInfo visualStudioRoot)
+    {
+        var versionDirectory = visualStudioRoot.Parent?.Name;
+        if (int.TryParse(versionDirectory, out var majorVersion))
+        {
+            return $"{majorVersion}.0";
+        }
+
+        return "17.0";
     }
 
     internal static IReadOnlyDictionary<string, string> BuildProjectNamesByFilePath(Solution solution)
